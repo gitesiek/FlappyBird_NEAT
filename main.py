@@ -43,7 +43,10 @@ class Bird:
                 self.lower_pipe_colision(pipe_pair.lower_pipe))
 
     def passed_pipes(self, pipe_pair):
-        return self.x > pipe_pair.upper_pipe.x + pipe_pair.upper_pipe.width / 2
+        return (self.x > pipe_pair.upper_pipe.x +
+                pipe_pair.upper_pipe.width / 2 and
+                self.x < pipe_pair.upper_pipe.x +
+                pipe_pair.upper_pipe.width / 2 + 10)
 
 
 class Pipe:
@@ -95,79 +98,99 @@ class Score:
     def __init__(self):
         self.points = 0
         self.font = pygame.font.SysFont(None, 36)
+        self.color = (255, 255, 255)
 
     def add_point(self):
         self.points = self.points + 1
 
     def draw(self):
         score_text = self.font.render(f"Score: {round(self.points,2)}",
-                                      True, (255, 255, 255))
+                                      True, self.color)
         WINDOW.blit(score_text, (10, 10))
 
 
 class Game:
     def __init__(self):
-        pass
+        pygame.init()
+        pygame.display.set_caption("Flappy Bird")
+        self.bird = Bird(HEIGHT // 2 - 25, 0, 0.5)
+        self.score = Score()
+        self.pipe_pairs = []
+        self.new_pipe_pair_event()
+        pygame.time.set_timer(pygame.USEREVENT, 1500)
 
-    def draw(self):
-        pass
+    def new_pipe_pair_event(self):
+        pipe_pair = PipePair()
+        pipe_pair.create_pipes()
+        self.pipe_pairs.append(pipe_pair)
 
-    def move(self):
-        pass
+    def play(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        self.bird.flap()
+                elif event.type == pygame.USEREVENT:
+                    self.new_pipe_pair_event()
+
+            WINDOW.fill((0, 191, 255))
+            self.move_and_draw()
+            self.reward_or_death()
+            pygame.display.update()
+            pygame.time.Clock().tick(60)
+
+    def move_and_draw(self):
+        self.bird.move()
+        self.bird.draw()
+        self.score.draw()
+        for pipe_pair in self.pipe_pairs:
+            pipe_pair.move_pipe_pair()
+            pipe_pair.draw_pipe_pair()
+
+    def reward_or_death(self):
+        if self.bird.collided_with(self.pipe_pairs[0]):
+            self.reset()
+        elif self.bird.passed_pipes(self.pipe_pairs[0]):
+            self.score.add_point()
+        if (self.pipe_pairs[0].upper_pipe.x +
+           self.pipe_pairs[0].upper_pipe.width < 0):
+            self.pipe_pairs.pop(0)
+        if (self.bird.y < 0 or self.bird.y + self.bird.height > HEIGHT):
+            self.reset()
 
     def reset(self):
+        self.pipe_pairs = []
+        self.new_pipe_pair_event()
+        self.bird.y = HEIGHT // 2 - 25
+        self.bird.speed = 0
+        self.bird.gravity = 0.5
+        self.score.points = 0
+        pygame.time.set_timer(pygame.USEREVENT, 1500)
+
+
+class QAgent():
+    def __init__(self):
         pass
 
+    def update_q_value(self):
+        pass
 
-pipe_pairs = []
+    def get_best_action(self):
+        pass
 
+    def save_model(self):
+        pass
 
-def new_pipe_pair_event():
-    pipe_pair = PipePair()
-    pipe_pair.create_pipes()
-    pipe_pairs.append(pipe_pair)
+    def load_model(self):
+        pass
 
 
 def main():
-    pygame.init()
-    pygame.display.set_caption("Flappy Bird")
-
-    bird = Bird(HEIGHT // 2 - 25, 0, 0.5)
-    score = Score()
-
-    pygame.time.set_timer(pygame.USEREVENT, 1500)
-
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    bird.flap()
-            elif event.type == pygame.USEREVENT:
-                new_pipe_pair_event()
-
-        WINDOW.fill((0, 191, 255))
-
-        bird.move()
-        bird.draw()
-
-        for pipe_pair in pipe_pairs:
-            pipe_pair.move_pipe_pair()
-            pipe_pair.draw_pipe_pair()
-            if bird.collided_with(pipe_pair):
-                print("kolizja")
-                pipe_pairs.pop(0)  # game.reset()
-            elif bird.passed_pipes(pipe_pair):
-                print("nagroda")
-                score.add_point()
-                pipe_pairs.pop(0)  # TODO: make it pop later ??
-
-        score.draw()
-
-        pygame.display.update()
-        pygame.time.Clock().tick(60)
+    flappyBird = Game()
+    flappyBird.play()
 
 
 if __name__ == "__main__":
