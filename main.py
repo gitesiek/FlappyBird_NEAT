@@ -1,18 +1,24 @@
 import pygame
 import sys
+import random
+
+WIDTH = 600
+HEIGHT = 400
+WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
 
 
 class Bird:
-    def __init__(self, x, y, width, height, speed, gravity):
-        self.x = x
+    def __init__(self, y, speed, gravity):
+        self.x = 100
         self.y = y
-        self.width = width
-        self.height = height
+        self.width = 50
+        self.height = 50
         self.speed = speed
         self.gravity = gravity
+        self.color = (255, 255, 0)
 
-    def draw(self, window):
-        pygame.draw.rect(window, (255, 255, 0),
+    def draw(self):
+        pygame.draw.rect(WINDOW, self.color,
                          [self.x, self.y, self.width, self.height])
 
     def flap(self):
@@ -22,27 +28,67 @@ class Bird:
         self.speed += self.gravity
         self.y += self.speed
 
+    def upper_pipe_colision(self, upper_pipe):
+        return (self.x < upper_pipe.x + upper_pipe.width and
+                self.x + self.width > upper_pipe.x and
+                self.y < upper_pipe.height)
 
-class Obstacle:
-    def __init__(self, x, gap_height, shift, width, speed, height):
-        self.upper = [x, 0, width, height // 2 - gap_height // 2]
-        self.lower = [x, height // 2 + gap_height // 2,
-                      width, height // 2 - gap_height // 2]
-        self.shift = shift
-        self.speed = speed
+    def lower_pipe_colision(self, lower_pipe):
+        return (self.x < lower_pipe.x + lower_pipe.width and
+                self.x + self.width > lower_pipe.x and
+                self.y + self.height > lower_pipe.y)
+
+    def collided_with(self, pipe_pair):
+        return (self.upper_pipe_colision(pipe_pair.upper_pipe) or
+                self.lower_pipe_colision(pipe_pair.lower_pipe))
+
+    def passed_pipes(self, pipe_pair):
+        return self.x > pipe_pair.upper_pipe.x + pipe_pair.upper_pipe.width / 2
+
+
+class Pipe:
+    def __init__(self, x, y, height):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = height
+        self.speed = 5
+        self.color = (0, 255, 0)
 
     def move(self):
-        self.upper[0] -= self.speed
-        self.lower[0] -= self.speed
+        self.x = self.x - self.speed
 
-    def draw(self, window):
-        pygame.draw.rect(window, (0, 255, 0), self.upper)
-        pygame.draw.rect(window, (0, 255, 0), self.lower)
+    def draw(self):
+        pygame.draw.rect(WINDOW, self.color,
+                         [self.x, self.y, self.width, self.height])
 
 
-def draw_obstacles(obstacles, window):
-    for obstacle in obstacles:
-        obstacle.draw(window)
+class PipePair:
+    def __init__(self):
+        self.gap_between_pipes = 200
+        self.upper_pipe, self.lower_pipe = self.create_pipes()
+
+    def create_upper_pipe(self, upper_pipe_height):
+        return Pipe(WIDTH, 0, upper_pipe_height)
+
+    def create_lower_pipe(self, lower_pipe_y):
+        return Pipe(WIDTH, lower_pipe_y, HEIGHT-lower_pipe_y)
+
+    def create_pipes(self):
+        upper_pipe_height = random.randrange(0, HEIGHT // 2)
+        lower_pipe_y = upper_pipe_height + self.gap_between_pipes
+        upper_pipe = self.create_upper_pipe(upper_pipe_height)
+        lower_pipe = self.create_lower_pipe(lower_pipe_y)
+
+        return upper_pipe, lower_pipe
+
+    def move_pipe_pair(self):
+        self.lower_pipe.move()
+        self.upper_pipe.move()
+
+    def draw_pipe_pair(self):
+        self.upper_pipe.draw()
+        self.lower_pipe.draw()
 
 
 class Score:
@@ -51,75 +97,77 @@ class Score:
         self.font = pygame.font.SysFont(None, 36)
 
     def add_point(self):
-        self.points = self.points + 1/19
+        self.points = self.points + 1
 
-    def draw(self, window):
+    def draw(self):
         score_text = self.font.render(f"Score: {round(self.points,2)}",
                                       True, (255, 255, 255))
-        window.blit(score_text, (10, 10))
+        WINDOW.blit(score_text, (10, 10))
+
+
+class Game:
+    def __init__(self):
+        pass
+
+    def draw(self):
+        pass
+
+    def move(self):
+        pass
+
+    def reset(self):
+        pass
+
+
+pipe_pairs = []
+
+
+def new_pipe_pair_event():
+    pipe_pair = PipePair()
+    pipe_pair.create_pipes()
+    pipe_pairs.append(pipe_pair)
 
 
 def main():
     pygame.init()
-
-    width = 600
-    height = 400
-    window = pygame.display.set_mode((width, height))
     pygame.display.set_caption("Flappy Bird")
 
-    bird = Bird(100, height // 2 - 25, 50, 50, 0, 0.5)
-    obstacles = []
-    last_obstacle_time = pygame.time.get_ticks()
+    bird = Bird(HEIGHT // 2 - 25, 0, 0.5)
     score = Score()
+
+    pygame.time.set_timer(pygame.USEREVENT, 1500)
 
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     bird.flap()
+            elif event.type == pygame.USEREVENT:
+                new_pipe_pair_event()
+
+        WINDOW.fill((0, 191, 255))
 
         bird.move()
+        bird.draw()
 
-        for obstacle in obstacles:
-            obstacle.move()
+        for pipe_pair in pipe_pairs:
+            pipe_pair.move_pipe_pair()
+            pipe_pair.draw_pipe_pair()
+            if bird.collided_with(pipe_pair):
+                print("kolizja")
+                pipe_pairs.pop(0)  # game.reset()
+            elif bird.passed_pipes(pipe_pair):
+                print("nagroda")
+                score.add_point()
+                pipe_pairs.pop(0)  # TODO: make it pop later ??
 
-        current_time = pygame.time.get_ticks()
-
-        if current_time - last_obstacle_time > 2500:
-            new_obstacle = Obstacle(width, 175, 200, 50, 5, height)
-            obstacles.append(new_obstacle)
-            last_obstacle_time = current_time
-
-        obstacles = [o for o in obstacles if o.upper[0] + 50 > 0]
-
-        for obstacle in obstacles:
-            if (
-                bird.x < obstacle.upper[0] + obstacle.upper[2] and
-                bird.x + bird.width > obstacle.upper[0] and
-                (bird.y < obstacle.upper[3] or
-                 bird.y + bird.height > obstacle.lower[1])
-            ):
-                print("Game Over!")
-                pygame.quit()
-                sys.exit()
-
-        if (
-            obstacles and bird.x >
-            obstacles[0].upper[0] + obstacles[0].upper[2]
-        ):
-            score.add_point()
-
-        window.fill((0, 191, 255))
-        bird.draw(window)
-        draw_obstacles(obstacles, window)
-        score.draw(window)
+        score.draw()
 
         pygame.display.update()
-        pygame.time.Clock().tick(30)
+        pygame.time.Clock().tick(60)
 
 
 if __name__ == "__main__":
